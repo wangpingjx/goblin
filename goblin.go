@@ -7,6 +7,7 @@ import (
 
 type App struct {
     Router Router
+    Controller Controller
 }
 
 func New() *App {

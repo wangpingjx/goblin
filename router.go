@@ -3,6 +3,7 @@ package goblin
 import (
     "net/http"
     "log"
+    "reflect"
 )
 
 // 路由器, 负责存储路由规则
@@ -12,13 +13,11 @@ type Router struct {
 
 // 路由协议, 负责将 URL 映射到正确的 Handle
 type Route struct {
-    method  string
-    pattern string
-    handler Handler
+    method         string
+    pattern        string
+    controller     reflect.Type
+    actionName     string
 }
-
-// 与路由匹配的目标 Handler
-type Handler func(w http.ResponseWriter, r *http.Request)
 
 // 路由分发方法
 func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -27,12 +26,28 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     log.Println("=> " + method + path)
 
+    context := Context {
+        Request:        r,
+        params:         nil,
+        ResponseWriter: w,
+    }
+
     for _, route := range m.routes {
         isMatch := route.route(method, path)
 
-        // 匹配成功, 调起 Handler
+        // 匹配成功
         if isMatch {
-            route.handler(w, r)
+            vc := reflect.New(route.controller)
+            controller, _ := vc.Interface().(ControllerInterface)
+
+            controller.Init(context)
+            controller.Before()
+
+            // invoke handler
+            method := vc.MethodByName(route.actionName)
+            method.Call([]reflect.Value{})
+
+            controller.After()
             return
         }
     }
@@ -48,25 +63,29 @@ func (r *Route) route(method string, path string) (isMatch bool) {
     return
 }
 
-func (p *Router) AddRoute(method string, pattern string, handler Handler) {
-    p.routes = append(p.routes, Route{method, pattern, handler})
+func (p *Router) AddRoute(method string, pattern string, t reflect.Type, actionName string) {
+    p.routes = append(p.routes, Route{method, pattern, t, actionName})
 }
 
-func (p *Router) Get(pattern string, handler Handler) {
-    p.AddRoute("GET", pattern, handler)
-    p.AddRoute("HEAD", pattern, handler)
+func (p *Router) Get(pattern string, c ControllerInterface, actionName string) {
+    t := reflect.Indirect(reflect.ValueOf(c)).Type()
+    p.AddRoute("GET", pattern, t, actionName)
+    p.AddRoute("HEAD", pattern, t, actionName)
 }
 
-func (p *Router) Post(pattern string, handler Handler) {
-    p.AddRoute("POST", pattern, handler)
+func (p *Router) Post(pattern string, c ControllerInterface, actionName string) {
+    t := reflect.Indirect(reflect.ValueOf(c)).Type()
+    p.AddRoute("POST", pattern, t, actionName)
 }
 
-func (p *Router) Put(pattern string, handler Handler) {
-    p.AddRoute("PUT", pattern, handler)
+func (p *Router) Put(pattern string, c ControllerInterface, actionName string) {
+    t := reflect.Indirect(reflect.ValueOf(c)).Type()
+    p.AddRoute("PUT", pattern, t, actionName)
 }
 
-func (p *Router) Delete(pattern string, handler Handler) {
-    p.AddRoute("DELETE", pattern, handler)
+func (p *Router) Delete(pattern string, c ControllerInterface, actionName string) {
+    t := reflect.Indirect(reflect.ValueOf(c)).Type()
+    p.AddRoute("DELETE", pattern, t, actionName)
 }
 
 func NewRouter() Router {
