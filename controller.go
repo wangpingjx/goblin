@@ -9,7 +9,6 @@ type Controller struct {
     Data    map[string]interface{}  // 输出参数
     TplName string    // 模板
     TplExt  string    // 扩展名称, Eg.  "tpl"、"xml"
-
 }
 
 type ControllerInterface interface {
@@ -32,4 +31,9 @@ func (c *Controller) Before() {
 
 func (c *Controller) After() {
     log.Println("=> in Controller#After")
+}
+
+func (c *Controller) RenderText(text string) {
+    c.Ctx.ResponseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
+    c.Ctx.ResponseWriter.Write([]byte(text))
 }
