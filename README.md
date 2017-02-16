@@ -8,27 +8,58 @@ micro web framework for go
 - [ ] view
 
 ## sample
+### main.go
 ```
 package main
 
-import(
-    "goblin"
-    "log"
+import (
+     "goblin"
+     _ "sumi/routers"
 )
 
-type MainController struct{
-    goblin.Controller
-}
-
-func (this *MainController) Login() {
-    this.Data["Username"] = "astaxie"
-    this.Data["Email"]    = "astaxie@gmail.com"
-    log.Println("=> in MainController#Login")
-}
-
 func main() {
-    app := goblin.New()
-    app.Router.Get("/login", &MainController{}, "Login")
-    app.Run(":9090")
+    goblin.Run(":9090")
 }
+
+```
+### routers/routers.go
+```
+package routers
+
+import (
+    "goblin"
+    "sumi/controllers"
+)
+
+func init() {
+    goblin.Get("/books",    &controllers.BooksController{}, "Index")
+    goblin.Get("/books/1",  &controllers.BooksController{}, "Show")
+}
+
+```
+### controllers/BooksController.go
+```
+package controllers
+
+import (
+    "goblin"
+    "log"
+ )
+
+ type BooksController struct {
+     goblin.Controller
+ }
+
+ func (this *BooksController) Index() {
+     log.Println("=> in book list")
+ }
+
+ func (this *BooksController) Show() {
+     log.Println("=> in book show")
+ }
+
+ func (this *BooksController) Create() {
+     log.Println("=> create new book")
+ }
+
 ```
