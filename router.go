@@ -40,7 +40,7 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             vc := reflect.New(route.controller)
             controller, _ := vc.Interface().(ControllerInterface)
 
-            controller.Init(context)
+            controller.Init(context, route.controller.Name(), route.actionName)
             controller.Before()
 
             // invoke handler
