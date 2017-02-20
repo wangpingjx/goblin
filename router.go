@@ -3,12 +3,14 @@ package goblin
 import (
     "net/http"
     "log"
+    "fmt"
     "reflect"
+    "regexp"
 )
 
 // 路由器, 负责存储路由规则
 type Router struct {
-    routes []Route
+    routes []*Route
 }
 
 // 路由协议, 负责将 URL 映射到正确的 Handle
@@ -17,6 +19,7 @@ type Route struct {
     pattern        string
     controller     reflect.Type
     actionName     string
+    regex          *regexp.Regexp
 }
 
 // 路由分发方法
@@ -28,15 +31,17 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     context := Context {
         Request:        r,
-        params:         nil,
+        Params:         nil,
         ResponseWriter: w,
     }
-
+    // 逐个匹配
     for _, route := range m.routes {
-        isMatch := route.route(method, path)
+        match, vals := route.route(method, path)
+        // 如果匹配成功
+        if match {
+            log.Println("=> mached route is " + string(route.pattern))
 
-        // 匹配成功
-        if isMatch {
+            context.Params = vals
             vc := reflect.New(route.controller)
             controller, _ := vc.Interface().(ControllerInterface)
 
@@ -51,20 +56,46 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             return
         }
     }
+    // TODO 404
     return
 }
 
-func (r *Route) route(method string, path string) (isMatch bool) {
-    if (method == r.method && path  == r.pattern) {
-        isMatch = true
-    } else {
-        isMatch = false
+// 借鉴martini，优化route匹配方法
+func (r *Route) route(method string, path string) (bool, map[string]string) {
+    if method != r.method {
+        return false, nil
     }
-    return
+    matches := r.regex.FindStringSubmatch(path)
+
+    if len(matches) > 0 && matches[0] == path {
+        params := make(map[string]string)
+        for i, name := range r.regex.SubexpNames() {
+            if len(name) > 0 {
+                params[name] = matches[i]    // SubexpNames()返回结果第0个元素永远是空字符串
+            }
+        }
+        return true, params
+    }
+    return false, nil
 }
 
-func (p *Router) AddRoute(method string, pattern string, t reflect.Type, actionName string) {
-    p.routes = append(p.routes, Route{method, pattern, t, actionName})
+// 生成regexp对象
+// Eg:   pattern = /books/:id/users/:user_id
+// Then: route.regex = /books/(?P<id>[^/#?]+)/users/(?P<user_id>[^/#?]+)\/?
+var routeReg1 = regexp.MustCompile(`:[^/#?()\.\\]+`)
+
+func newRoute(method string, pattern string, t reflect.Type, action string) *Route {
+    route  := Route{method, pattern, t, action, nil}
+    pattern = routeReg1.ReplaceAllStringFunc(pattern, func(m string) string {
+        return fmt.Sprintf(`(?P<%s>[^/#?]+)`, m[1:])
+    })
+    pattern += `\/?`
+    route.regex = regexp.MustCompile(pattern)
+    return &route
+}
+
+func (p *Router) AddRoute(method string, pattern string, t reflect.Type, action string) {
+    p.routes = append(p.routes, newRoute(method, pattern, t, action))
 }
 
 func (p *Router) Get(pattern string, c ControllerInterface, actionName string) {
@@ -89,6 +120,6 @@ func (p *Router) Delete(pattern string, c ControllerInterface, actionName string
 }
 
 func NewRouter() Router {
-    router := Router{routes: make([]Route, 5, 5)}
+    router := Router{routes: make([]*Route, 0, 0)}
     return router
 }

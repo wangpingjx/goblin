@@ -7,12 +7,12 @@ import (
 
 type Controller struct {
     Ctx            Context                 // 请求上下文
+    Params         map[string]string       // 传入参数
     Data           map[string]interface{}  // 输出参数
     controllerName string                  // 控制器名称
     actionName     string                  // Action
     TplName        string                  // 模板
     TplExt         string                  // 扩展名称, Eg.  "tpl"、"xml"
-
 }
 
 type ControllerInterface interface {
@@ -24,6 +24,7 @@ type ControllerInterface interface {
 // 初始化，设置默认值
 func (c *Controller) Init(ctx Context, controllerName string, actionName string) {
     c.Ctx            = ctx
+    c.Params         = ctx.Params
     c.Data           = make(map[string]interface{})
     c.TplName        = ""
     c.TplExt         = "gtpl"

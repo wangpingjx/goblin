@@ -6,6 +6,6 @@ import (
 
 type Context struct {
     Request        *http.Request
-    params         map[string]string
+    Params         map[string]string
     http.ResponseWriter
 }

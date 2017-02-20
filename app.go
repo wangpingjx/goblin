@@ -30,20 +30,16 @@ func (app *App) Run(port string) {
 
 func Get(pattern string, c ControllerInterface, actionName string) {
     GoblinApp.Router.Get(pattern, c, actionName)
-    // return GoblinApp
 }
 
 func Post(pattern string, c ControllerInterface, actionName string) {
     GoblinApp.Router.Post(pattern, c, actionName)
-    // return GoblinApp
 }
 
 func Put(pattern string, c ControllerInterface, actionName string) {
     GoblinApp.Router.Put(pattern, c, actionName)
-    // return GoblinApp
 }
 
 func Delete(pattern string, c ControllerInterface, actionName string) {
     GoblinApp.Router.Delete(pattern, c, actionName)
-    // return GoblinApp
 }
