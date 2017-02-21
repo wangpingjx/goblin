@@ -15,11 +15,11 @@ type Router struct {
 
 // 路由协议, 负责将 URL 映射到正确的 Handle
 type Route struct {
-    method         string
-    pattern        string
-    controller     reflect.Type
-    actionName     string
-    regex          *regexp.Regexp
+    method          string
+    pattern         string
+    controllerType  reflect.Type
+    actionName      string
+    regex           *regexp.Regexp
 }
 
 // 路由分发方法
@@ -27,13 +27,6 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     path   := r.URL.Path
     method := r.Method
 
-    log.Println("=> " + method + path)
-
-    context := Context {
-        Request:        r,
-        Params:         nil,
-        ResponseWriter: w,
-    }
     // 逐个匹配
     for _, route := range m.routes {
         match, vals := route.route(method, path)
@@ -41,18 +34,28 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         if match {
             log.Println("=> mached route is " + string(route.pattern))
 
-            context.Params = vals
-            vc := reflect.New(route.controller)
-            controller, _ := vc.Interface().(ControllerInterface)
+            rc := reflect.New(route.controllerType)
+            controller, _ := rc.Interface().(ControllerInterface)   // TODO 没看懂
 
-            controller.Init(context, route.controller.Name(), route.actionName)
+            // 把请求上下文放入 Context
+            ctx := &Context{ Params: vals, Request: r, ResponseWriter: w }
+
+            // 初始化 controller
+            controller.Init(ctx, route.controllerType.Name(), route.actionName)
+
+            // Before()
             controller.Before()
 
             // invoke handler
-            method := vc.MethodByName(route.actionName)
+            method := rc.MethodByName(route.actionName)
             method.Call([]reflect.Value{})
 
+            // render template
+            controller.Render()
+
+            // After()
             controller.After()
+
             return
         }
     }
