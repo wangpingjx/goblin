@@ -11,9 +11,6 @@ type Context struct {
     http.ResponseWriter
 }
 
-// func (c *Context) ApplyTemplate() error{
-// }
-
 func (c *Context) ApplyJSON(obj interface{}) error{
     c.ResponseWriter.Header().Set("Content-Type", "application/json")
 
@@ -26,7 +23,8 @@ func (c *Context) ApplyJSON(obj interface{}) error{
     return nil
 }
 
-// func (c *Context) ApplyText(text string) error{
-//     c.ResponseWriter.Write(text)
-//     return nil
-// }
+func (c *Context) ApplyString(content string) error{
+    c.ResponseWriter.Header().Set("Content-Type", "text/html")
+    c.ResponseWriter.Write([]byte(content))
+    return nil
+}

@@ -49,10 +49,7 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             // invoke handler
             method := rc.MethodByName(route.actionName)
             method.Call([]reflect.Value{})
-
-            // render template
-            controller.Render()
-
+            
             // After()
             controller.After()
 
