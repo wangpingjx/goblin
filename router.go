@@ -6,6 +6,7 @@ import (
     "fmt"
     "reflect"
     "regexp"
+    // "io/ioutil"
 )
 
 // 路由器, 负责存储路由规则
@@ -23,12 +24,12 @@ type Route struct {
 }
 
 // 路由分发方法
-func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     path   := r.URL.Path
     method := r.Method
 
     // 逐个匹配
-    for _, route := range m.routes {
+    for _, route := range p.routes {
         match, vals := route.route(method, path)
         // 如果匹配成功
         if match {
@@ -40,6 +41,14 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             // 把请求上下文放入 Context
             ctx := &Context{ Params: vals, Request: r, ResponseWriter: w }
 
+            // 获取请求参数
+            r.ParseForm()
+            r.ParseMultipartForm(2 * 1024 * 1024)
+
+            for k, v := range r.Form {
+                ctx.Params[k] = v[0]
+            }
+
             // 初始化 controller
             controller.Init(ctx, route.controllerType.Name(), route.actionName)
 
@@ -49,15 +58,15 @@ func (m *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             // invoke handler
             method := rc.MethodByName(route.actionName)
             method.Call([]reflect.Value{})
-            
+
             // After()
             controller.After()
 
             return
         }
     }
-    // TODO 404
-    return
+    log.Println("=> 404 not found ")
+    p.NotFound(w,r)
 }
 
 // 借鉴martini，优化route匹配方法
@@ -122,4 +131,9 @@ func (p *Router) Delete(pattern string, c ControllerInterface, actionName string
 func NewRouter() Router {
     router := Router{routes: make([]*Route, 0, 0)}
     return router
+}
+
+func (p *Router) NotFound(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(404)
+    fmt.Fprint(w, "404 Not Found.")
 }
