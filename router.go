@@ -65,7 +65,7 @@ func (p *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             return
         }
     }
-    log.Println("=> 404 not found ")
+    log.Println("=> 404 not found")
     p.NotFound(w,r)
 }
 
