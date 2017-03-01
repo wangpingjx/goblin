@@ -1,10 +1,8 @@
-package goblinDB
+package db
 
 import (
     "log"
 )
-
-// const CommaSpace = ", "
 
 type QueryBuilder struct {
     tableName   string
