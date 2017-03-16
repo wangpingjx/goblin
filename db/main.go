@@ -55,6 +55,9 @@ func (s *DB) Table(name string) *DB {
    return s.qb.Table(name).db
 }
 
+/************************
+ *     for migrate      *
+ ************************/
 func (s *DB) NewTable(value interface{}) *Table {
     t :=  &Table{ db: s }
     return t.New(value)
