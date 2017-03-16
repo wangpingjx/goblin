@@ -90,5 +90,5 @@ func (qb *QueryBuilder) buildSelect() (sql string) {
 }
 
 func (qb *QueryBuilder) ToString() string {
-    return qb.buildSelect())
+    return qb.buildSelect()
 }
