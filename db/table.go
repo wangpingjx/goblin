@@ -20,18 +20,24 @@ type Field struct {
     Tag   reflect.StructTag
 }
 
-// TODO 需要缓存起来
-func (t *Table) New(value interface{}) *Table {
-    t.modelType = reflect.ValueOf(value).Type().Elem()
-    t.name      = strings.ToLower(t.modelType.Name())
+// 缓存映射信息，提高效率
+var tableCache = map[reflect.Type]*Table{}
 
-    // 获取所有列
-    for i := 0; i < t.modelType.NumField(); i++ {
-        f := t.modelType.Field(i)
-        field := &Field{ Name: strings.ToLower(f.Name), Tag: f.Tag}
-        t.Fields = append(t.Fields, field)
+func (t *Table) New(value interface{}) *Table {
+    modelType := reflect.ValueOf(value).Type().Elem()
+    if v := tableCache[modelType]; v == nil {
+        t.modelType = modelType
+        t.name      = strings.ToLower(t.modelType.Name())
+
+        // 获取所有列
+        for i := 0; i < t.modelType.NumField(); i++ {
+            f := t.modelType.Field(i)
+            field := &Field{ Name: strings.ToLower(f.Name), Tag: f.Tag}
+            t.Fields = append(t.Fields, field)
+        }
+        tableCache[modelType] = t
     }
-    return t
+    return tableCache[modelType]
 }
 
 func (t *Table) TableName() string {
@@ -50,17 +56,6 @@ func (t *Table) Quote(str string) string {
     return "`" + str + "`"
 }
 
-func (t *Table) Migrate() bool {
-    if !t.HasTable(t.name) {
-        t.CreateTable()
-    } else {
-         log.Println("TODO: alter table")
-         // 遍历字段、字段是否存在/变化、执行变化
-         // 变更索引
-    }
-    return true
-}
-
 // 当前数据库名称
 func (t *Table) CurrentDatabase() (name string){
    t.db.db.QueryRow("SELECT DATABASE()").Scan(&name)
@@ -74,8 +69,34 @@ func (t *Table) HasTable(name string) bool {
     return count > 0
 }
 
-// 建表
-func (t *Table) CreateTable() bool{
+// 列字段是否存在
+func (t *Table) HasColumn(tableName string, columnName string) bool {
+    var count int
+    t.db.db.QueryRow("SELECT count(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = ? AND table_name = ? AND column_name = ?", t.CurrentDatabase(), tableName, columnName).Scan(&count)
+    return count > 0
+}
+
+// 索引是否存在
+func (t *Table) HasIndex(tableName string, indexName string) bool {
+    var count int
+    t.db.db.QueryRow("SELECT count(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE table_schema = ? AND table_name = ? AND index_name = ?", t.CurrentDatabase(), tableName, indexName).Scan(&count)
+    return count > 0
+}
+
+
+func (t *Table) Migrate() bool {
+    if !t.HasTable(t.name) {
+        t.CreateTable()
+    } else {
+         log.Println("TODO: alter table")
+         t.UpdateTable()
+    }
+    // t.autoIndex()
+    return true
+}
+
+// 创建表
+func (t *Table) CreateTable() {
     var tags    []string
     var indexes []string
     for _, field := range t.Fields {
@@ -93,6 +114,48 @@ func (t *Table) CreateTable() bool{
     sql := fmt.Sprintf("CREATE TABLE %v (%v) %s", t.Quote(t.TableName()), strings.Join(tags, ","), additionSQL)
     log.Println("=> sql: " + sql)
     t.db.db.Exec(sql)
+}
 
-    return true
+// 更新表
+func (t *Table) UpdateTable() {
+    for _, field := range t.Fields {
+        if !t.HasColumn(t.TableName(), field.Name) {
+            sql := fmt.Sprintf("ALTER TABLE %v ADD %v %v", t.Quote(t.TableName()), t.Quote(field.Name), t.ColumnTypeOf(field))
+            t.db.db.Exec(sql)
+        }
+    }
+}
+
+// 更新索引
+func (t *Table) autoIndex() {
+
+}
+
+func (t *Table) dropTable() {
+    if t.HasTable(t.TableName()) {
+        t.db.db.Exec(fmt.Sprintf("DROP TABLE %v", t.Quote(t.TableName())))
+    }
+}
+
+func (t *Table) modifyColumn(column string ,tag string) {
+    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v MODIFY %v %v", t.Quote(t.TableName()), t.Quote(column), tag))
+}
+
+func (t *Table) dropColumn(column string) {
+    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v DROP COLUMN %v", t.Quote(t.TableName()), t.Quote(column)))
+}
+
+func (t *Table) addIndex(unique bool, indexName string, column ...string) {
+    if t.HasIndex(t.TableName(), indexName) {
+        return
+    }
+    sqlStr := "CREATE INDEX"
+    if unique {
+        sqlStr = "CREATE UNIQUE INDEX"
+    }
+    t.db.db.Exec(fmt.Sprintf("%v %v ON %v(%v)", sqlStr, indexName, t.Quote(t.TableName()), strings.Join(column, ",")))
+}
+
+func (t *Table) removeIndex(indexName string) {
+    t.db.db.Exec(fmt.Sprintf("DROP INDEX %v ON %v", indexName, t.Quote(t.TableName())))
 }

@@ -56,7 +56,7 @@ func (s *DB) Table(name string) *DB {
 }
 
 /************************
- *     for migrate      *
+ *     Schema 相关       *
  ************************/
 func (s *DB) NewTable(value interface{}) *Table {
     t :=  &Table{ db: s }
@@ -70,10 +70,41 @@ func (s *DB) Migrate(values ...interface{}) bool {
     return true
 }
 
+func (s *DB) DropTable(values ...interface{}) *DB {
+    for _, value := range values {
+        s.NewTable(value).dropTable()
+    }
+    return s
+}
+
+func (s *DB) ModifyColumn(value interface{}, column string, tag string) *DB {
+    s.NewTable(value).modifyColumn(column, tag)
+    return s
+}
+
+func (s *DB) DropColumn(value interface{}, column string) *DB{
+    s.NewTable(value).dropColumn(column)
+    return s
+}
+
+func (s *DB) AddIndex(value interface{}, indexName string, column ...string) *DB {
+    s.NewTable(value).addIndex(false, indexName, column...)
+    return s
+}
+
+func (s *DB) AddUniqueIndex(value interface{}, indexName string , column ...string) *DB {
+    s.NewTable(value).addIndex(true, indexName, column...)
+    return s
+}
+
+func (s *DB) RemoveIndex(value interface{}, indexName string) *DB {
+    s.NewTable(value).removeIndex(indexName)
+    return s
+}
+
 /************************
- *  用于组建查询的基本方法  *
+ *       查询构造器       *
  ************************/
- /* 直接裸SQL查询 */
  func (s *DB) Query(query string) (*sql.Rows, error) {
      return s.db.Query(query)
  }
@@ -112,7 +143,3 @@ func (s *DB) Find() (*sql.Rows, error) {
 //
 //     }
 // }
-
-/* private method */
-/* TODO 为了了解clone的作用，暂不实现它，看在什么时候会遇到坑 */
-// func (s *DB) clone() *DB {}

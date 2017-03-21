@@ -4,8 +4,13 @@ micro web framework for go
 
 ## To do list
 - [x] router
-- [ ] controller
-- [ ] view
+- [x] controller
+- [x] ORM - A Simple QueryBuilder
+- [] ORM - Schema Management
+- [] ORM - Schema Management
+- [] ORM - Result Mapping
+- [] Session Management
+- [] Logger
 
 ## sample
 ### main.go
