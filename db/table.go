@@ -7,6 +7,7 @@ import (
     "log"
 )
 
+/* 数据表的抽象类，存储Model对应的表名&表字段信息 */
 type Table struct {
     db          *DB
     name        string
@@ -16,8 +17,10 @@ type Table struct {
 }
 
 type Field struct {
-    Name  string
-    Tag   reflect.StructTag
+    Name         string
+    Tag          reflect.StructTag
+    Value        reflect.Value
+    IsPrimaryKey bool
 }
 
 // 缓存映射信息，提高效率
@@ -27,7 +30,7 @@ func (t *Table) New(value interface{}) *Table {
     modelType := reflect.ValueOf(value).Type().Elem()
     if v := tableCache[modelType]; v == nil {
         t.modelType = modelType
-        t.name      = strings.ToLower(t.modelType.Name())
+        t.name      = strings.ToLower(t.modelType.Name())   // 放到Uitl中
 
         // 获取所有列
         for i := 0; i < t.modelType.NumField(); i++ {
@@ -45,16 +48,16 @@ func (t *Table) TableName() string {
 }
 
 func (t *Table) ColumnTypeOf(field *Field) string {
-    return field.Tag.Get("db")
+    return field.Tag.Get("schema")
 }
 
 func (t *Table) ColumnIndexOf(field *Field) string {
     return field.Tag.Get("index")
 }
 
-func (t *Table) Quote(str string) string {
-    return "`" + str + "`"
-}
+// func (t *Table) Quote(str string) string {
+//     return "`" + str + "`"
+// }
 
 // 当前数据库名称
 func (t *Table) CurrentDatabase() (name string){
@@ -84,15 +87,13 @@ func (t *Table) HasIndex(tableName string, indexName string) bool {
 }
 
 
-func (t *Table) Migrate() bool {
+func (t *Table) Migrate() {
     if !t.HasTable(t.name) {
         t.CreateTable()
     } else {
          log.Println("TODO: alter table")
          t.UpdateTable()
     }
-    // t.autoIndex()
-    return true
 }
 
 // 创建表
@@ -100,9 +101,9 @@ func (t *Table) CreateTable() {
     var tags    []string
     var indexes []string
     for _, field := range t.Fields {
-        tags  = append(tags, t.Quote(field.Name) + " " + t.ColumnTypeOf(field))
+        tags  = append(tags, Quote(field.Name) + " " + t.ColumnTypeOf(field))
         if index := t.ColumnIndexOf(field); index != "" {
-            indexes = append(indexes, index + " (" + t.Quote(field.Name) + ")")
+            indexes = append(indexes, index + " (" + Quote(field.Name) + ")")
         }
     }
     if len(indexes) == 0 {
@@ -111,7 +112,7 @@ func (t *Table) CreateTable() {
     tags = append(tags, indexes...)
     additionSQL := "ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci"
 
-    sql := fmt.Sprintf("CREATE TABLE %v (%v) %s", t.Quote(t.TableName()), strings.Join(tags, ","), additionSQL)
+    sql := fmt.Sprintf("CREATE TABLE %v (%v) %s", Quote(t.TableName()), strings.Join(tags, ","), additionSQL)
     log.Println("=> sql: " + sql)
     t.db.db.Exec(sql)
 }
@@ -120,29 +121,24 @@ func (t *Table) CreateTable() {
 func (t *Table) UpdateTable() {
     for _, field := range t.Fields {
         if !t.HasColumn(t.TableName(), field.Name) {
-            sql := fmt.Sprintf("ALTER TABLE %v ADD %v %v", t.Quote(t.TableName()), t.Quote(field.Name), t.ColumnTypeOf(field))
+            sql := fmt.Sprintf("ALTER TABLE %v ADD %v %v", Quote(t.TableName()), Quote(field.Name), t.ColumnTypeOf(field))
             t.db.db.Exec(sql)
         }
     }
 }
 
-// 更新索引
-func (t *Table) autoIndex() {
-
-}
-
 func (t *Table) dropTable() {
     if t.HasTable(t.TableName()) {
-        t.db.db.Exec(fmt.Sprintf("DROP TABLE %v", t.Quote(t.TableName())))
+        t.db.db.Exec(fmt.Sprintf("DROP TABLE %v", Quote(t.TableName())))
     }
 }
 
 func (t *Table) modifyColumn(column string ,tag string) {
-    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v MODIFY %v %v", t.Quote(t.TableName()), t.Quote(column), tag))
+    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v MODIFY %v %v", Quote(t.TableName()), Quote(column), tag))
 }
 
 func (t *Table) dropColumn(column string) {
-    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v DROP COLUMN %v", t.Quote(t.TableName()), t.Quote(column)))
+    t.db.db.Exec(fmt.Sprintf("ALTER TABLE %v DROP COLUMN %v", Quote(t.TableName()), Quote(column)))
 }
 
 func (t *Table) addIndex(unique bool, indexName string, column ...string) {
@@ -153,9 +149,9 @@ func (t *Table) addIndex(unique bool, indexName string, column ...string) {
     if unique {
         sqlStr = "CREATE UNIQUE INDEX"
     }
-    t.db.db.Exec(fmt.Sprintf("%v %v ON %v(%v)", sqlStr, indexName, t.Quote(t.TableName()), strings.Join(column, ",")))
+    t.db.db.Exec(fmt.Sprintf("%v %v ON %v(%v)", sqlStr, indexName, Quote(t.TableName()), strings.Join(column, ",")))
 }
 
 func (t *Table) removeIndex(indexName string) {
-    t.db.db.Exec(fmt.Sprintf("DROP INDEX %v ON %v", indexName, t.Quote(t.TableName())))
+    t.db.db.Exec(fmt.Sprintf("DROP INDEX %v ON %v", indexName, Quote(t.TableName())))
 }

@@ -35,7 +35,7 @@ func (p *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             log.Println("=> mached route is " + string(route.pattern))
 
             rc := reflect.New(route.controllerType)
-            controller, _ := rc.Interface().(ControllerInterface)   // TODO 没看懂
+            controller, _ := rc.Interface().(ControllerInterface)
 
             // 把请求上下文放入 Context
             ctx := &Context{ Params: vals, Request: r, ResponseWriter: w }

@@ -1,5 +1,5 @@
 /**
- * 本文件实现方式借鉴 gorm
+ * 实现方式借鉴 gorm、xorm
  */
 package db
 
@@ -20,7 +20,7 @@ type sqlCommon interface {
 /* 数据库连接信息（尽量保持长连接、避免频繁open&close）*/
 type DB struct {
     db       sqlCommon       // *sql.DB
-    qb       *QueryBuilder   // 构造器
+    qb       *QueryBuilder   // SQL构造器
     parent   *DB
 }
 
@@ -105,6 +105,16 @@ func (s *DB) RemoveIndex(value interface{}, indexName string) *DB {
 /************************
  *       查询构造器       *
  ************************/
+ func (s *DB) NewSession(value interface{}) *Session {
+     session :=  &Session{ db: s}
+     return session.New(value)
+ }
+
+ func (s *DB) Create(value interface{}) *DB {
+     return s.NewSession(value).Create().db
+ }
+
+// TODO
  func (s *DB) Query(query string) (*sql.Rows, error) {
      return s.db.Query(query)
  }
@@ -128,8 +138,11 @@ func (s *DB) Find() (*sql.Rows, error) {
 }
 
 /************************
- * TODO 处理查询结果      *
+ *     对象关系映射       *
  ************************/
+
+
+
 // func (s *DB) ScanRows(rows *sql.Rows, fields []string) error {
 //     var ignored interface{}
 //     var columns, err = rows.Columns()

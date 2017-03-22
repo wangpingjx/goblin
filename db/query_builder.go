@@ -7,15 +7,15 @@ import (
     "strconv"
 )
 
+/* SQL组装工具 */
 type QueryBuilder struct {
-    db           *DB
-    tableName    string
-    operation    string
+    db                *DB
+    tableName         string
 
+    operation         string
     whereConditions   []map[string]interface{}
-
-    selects      string
-    limit        int
+    selects           string
+    limit             int
 }
 
 func (qb *QueryBuilder) Table(name string) *QueryBuilder {
