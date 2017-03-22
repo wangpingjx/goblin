@@ -5,6 +5,8 @@ import (
     "strings"
     "reflect"
     "strconv"
+    "database/sql"
+    "log"
 )
 
 /* SQL组装工具 */
@@ -21,6 +23,12 @@ type QueryBuilder struct {
 func (qb *QueryBuilder) Table(name string) *QueryBuilder {
     qb.tableName = name
     return qb
+}
+
+func (qb *QueryBuilder) Query() (*sql.Rows, error) {
+    sql := qb.buildSelect()
+    log.Println("sql: " + sql)
+    return qb.db.Query(sql)
 }
 
 func (qb *QueryBuilder) Where(query interface{}, args ...interface{}) *QueryBuilder {
@@ -74,6 +82,14 @@ func (qb *QueryBuilder) buildWhereCondition(cond map[string]interface{}) (sql st
     return sql
 }
 
+func (qb *QueryBuilder) buildLimitSQL() (string) {
+    if qb.limit > 0 {
+        return fmt.Sprintf("LIMIT %d", qb.limit)
+    } else {
+        return ""
+    }
+}
+
 func (qb *QueryBuilder) buildWhereSQL() (string) {
     var whereConditions []string
     for _, cond := range qb.whereConditions {
@@ -81,11 +97,18 @@ func (qb *QueryBuilder) buildWhereSQL() (string) {
             whereConditions = append(whereConditions, sql)
         }
     }
-    return strings.Join(whereConditions, " AND ")
+    if len(whereConditions) > 0 {
+        return "WHERE " + strings.Join(whereConditions, " AND ")
+    } else {
+        return ""
+    }
 }
 
 func (qb *QueryBuilder) buildSelect() (sql string) {
-    sql = fmt.Sprintf("SELECT %v FROM %v WHERE %v", qb.selects, qb.tableName, qb.buildWhereSQL())
+    if "" == qb.selects {
+        qb.selects = "*"
+    }
+    sql = fmt.Sprintf("SELECT %v FROM %v %v %v", qb.selects, qb.tableName, qb.buildWhereSQL(), qb.buildLimitSQL())
     return sql
 }
 

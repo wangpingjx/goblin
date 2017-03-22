@@ -105,19 +105,25 @@ func (s *DB) RemoveIndex(value interface{}, indexName string) *DB {
 /************************
  *       查询构造器       *
  ************************/
- func (s *DB) NewSession(value interface{}) *Session {
-     session :=  &Session{ db: s}
-     return session.New(value)
- }
+func (s *DB) NewSession(value interface{}) *Session {
+    session :=  &Session{ db: s}
+    return session.New(value)
+}
 
- func (s *DB) Create(value interface{}) *DB {
-     return s.NewSession(value).Create().db
- }
+func (s *DB) Create(value interface{}) *DB {
+    return s.NewSession(value).Create().db
+}
 
-// TODO
- func (s *DB) Query(query string) (*sql.Rows, error) {
-     return s.db.Query(query)
- }
+func (s *DB) First(value interface{})  (*sql.Rows, error) {
+    return s.NewSession(value).qb.Limit(1).Query()
+}
+
+func (s *DB) Query(query string) (*sql.Rows, error) {
+    return s.db.Query(query)
+}
+
+
+
 
 func (s *DB) Select(selects string) *DB {
     return s.qb.Select(selects).db
