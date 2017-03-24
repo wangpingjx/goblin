@@ -5,8 +5,8 @@ import (
     "strings"
     "reflect"
     "strconv"
-    "database/sql"
-    "log"
+    // "database/sql"
+    // "log"
 )
 
 /* SQL组装工具 */
@@ -18,17 +18,17 @@ type QueryBuilder struct {
     whereConditions   []map[string]interface{}
     selects           string
     limit             int
+    order             string
 }
+
+// func (qb *QueryBuilder) init() *QueryBuilder {
+//     qb.selects = "*"
+//     return qb
+// }
 
 func (qb *QueryBuilder) Table(name string) *QueryBuilder {
     qb.tableName = name
     return qb
-}
-
-func (qb *QueryBuilder) Query() (*sql.Rows, error) {
-    sql := qb.buildSelect()
-    log.Println("sql: " + sql)
-    return qb.db.Query(sql)
 }
 
 func (qb *QueryBuilder) Where(query interface{}, args ...interface{}) *QueryBuilder {
@@ -46,6 +46,14 @@ func (qb *QueryBuilder) Limit(limit int) *QueryBuilder {
     qb.limit = limit
     return qb
 }
+
+// Order("id DESC")
+func (qb *QueryBuilder) Order(order string) *QueryBuilder {
+    qb.order = order
+    return qb
+}
+
+
 
 /* TODO 暂时默认 query 只会是string，以后再扩充功能 */
 /* TODO 类型断言太恶心了，要改 */
@@ -82,9 +90,17 @@ func (qb *QueryBuilder) buildWhereCondition(cond map[string]interface{}) (sql st
     return sql
 }
 
+func (qb *QueryBuilder) buildOrderSQL() (string) {
+    if qb.order != "" {
+        return fmt.Sprintf(" ORDER BY %v", qb.order)
+    } else {
+        return ""
+    }
+}
+
 func (qb *QueryBuilder) buildLimitSQL() (string) {
     if qb.limit > 0 {
-        return fmt.Sprintf("LIMIT %d", qb.limit)
+        return fmt.Sprintf(" LIMIT %d", qb.limit)
     } else {
         return ""
     }
@@ -108,10 +124,10 @@ func (qb *QueryBuilder) buildSelect() (sql string) {
     if "" == qb.selects {
         qb.selects = "*"
     }
-    sql = fmt.Sprintf("SELECT %v FROM %v %v %v", qb.selects, qb.tableName, qb.buildWhereSQL(), qb.buildLimitSQL())
+    sql = fmt.Sprintf("SELECT %v FROM %v%v%v%v", qb.selects, qb.tableName, qb.buildWhereSQL(), qb.buildOrderSQL(), qb.buildLimitSQL())
     return sql
 }
 
-func (qb *QueryBuilder) ToString() string {
+func (qb *QueryBuilder) ToSQL() string {
     return qb.buildSelect()
 }

@@ -114,34 +114,52 @@ func (s *DB) Create(value interface{}) *DB {
     return s.NewSession(value).Create().db
 }
 
-func (s *DB) First(value interface{})  (*sql.Rows, error) {
-    return s.NewSession(value).qb.Limit(1).Query()
+func (s *DB) First(value interface{}) {
+    session      := s.NewSession(value)
+    sql          := session.qb.Limit(1).ToSQL()
+    if rows, err := s.Query(sql); err == nil {
+        session.scan(rows)
+    }
+}
+
+func (s *DB) Last(value interface{}) {
+    session      := s.NewSession(value)
+    sql          := session.qb.Order("id desc").Limit(1).ToSQL()
+    if rows, err := s.Query(sql); err == nil {
+        session.scan(rows)
+    }
+}
+
+func (s *DB) Find(value interface{}) {
+    session      := s.NewSession(value)
+    sql          := session.qb.ToSQL()
+    if rows, err := s.Query(sql); err == nil {
+        session.scan(rows)
+    }
 }
 
 func (s *DB) Query(query string) (*sql.Rows, error) {
+    log.Println(" => SQL: " + query)
     return s.db.Query(query)
 }
 
+// func (s *DB) Select(selects string) *DB {
+//     return s.qb.Select(selects).db
+// }
+//
+// func (s *DB) Where(query interface{}, args ...interface{}) *DB {
+//     return s.qb.Where(query, args...).db
+// }
+//
+// func (s *DB) Limit(limit int) *DB {
+//     return s.qb.Limit(limit).db
+// }
+//
+// func (s *DB) Find() (*sql.Rows, error) {
+//     sql := s.qb.buildSelect()
+//     return s.Query(sql)
+// }
 
-
-
-func (s *DB) Select(selects string) *DB {
-    return s.qb.Select(selects).db
-}
-
-func (s *DB) Where(query interface{}, args ...interface{}) *DB {
-    return s.qb.Where(query, args...).db
-}
-
-func (s *DB) Limit(limit int) *DB {
-    return s.qb.Limit(limit).db
-}
-
-func (s *DB) Find() (*sql.Rows, error) {
-    sql := s.qb.buildSelect()
-    log.Println("=> sql: " + sql)
-    return s.Query(sql)
-}
 
 /************************
  *     对象关系映射       *
