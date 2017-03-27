@@ -183,8 +183,21 @@ func (s *DB) Select(str string) *Session {
     return session.Select(str)
 }
 
+func (s *DB) Model(value interface{}) *Session {
+    session := s.NewSession()
+    session.Value = value
+    return session
+}
+
 func (s *DB) Create(value interface{}) (int64, error) {
     session := s.NewSession()
     session.Value = value
     return session.Create()
+}
+
+// Create or Update
+func (s *DB) Save(value interface{}) (int64, error) {
+    session := s.NewSession()
+    session.Value = value
+    return session.Save()
 }

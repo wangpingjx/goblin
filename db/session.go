@@ -170,5 +170,67 @@ func (session *Session) Create() (int64, error) {
     } else {
         return 0, err
     }
+}
 
+func (session *Session) Update(column string, attr interface{}) (int64, error) {
+    var (
+        updateSqls    []string
+        modelStruct   ModelStruct
+    )
+    modelStruct = session.GetModelStuct(session.Value)
+
+    // TODO 待扩展支持多个参数更新
+    updateSqls = append(updateSqls, fmt.Sprintf("%v = %v", Quote(column), ToVars(attr)))
+
+    if len(updateSqls) > 0 {
+        session.SQL = fmt.Sprintf("UPDATE %v SET %v%v", Quote(modelStruct.TableName), strings.Join(updateSqls, ","), session.QB.buildWhereSQL())
+    }
+    log.Printf("Update SQL is %v", session.SQL)
+    if result, err := session.DB().Exec(session.SQL, session.SQLVars...); err == nil {
+        session.RowsAffected, _ = result.RowsAffected()
+
+        return session.RowsAffected, err
+    } else {
+        return 0, err
+    }
+}
+
+// Create or Update
+func (session *Session) Save() (int64, error) {
+    var (
+        isNewRecord  bool
+        updateSqls   []string
+        modelStruct   ModelStruct
+    )
+    modelStruct = session.GetModelStuct(session.Value)
+
+    for _, field := range modelStruct.Fields {
+        if field.Name == "id" {
+            if id, ok := field.Value.Interface().(int); ok {
+                if id > 0 {
+                    isNewRecord = false
+                    session.QB.Where("id = ?", id)
+                } else {
+                    isNewRecord = true
+                    break
+                }
+            }
+        }
+        updateSqls = append(updateSqls, fmt.Sprintf("%v = %v", Quote(field.Name), ToVars(field.Value.Interface())))
+    }
+
+    if isNewRecord {
+        return session.Create()
+    }
+    if len(updateSqls) > 0 {
+        session.SQL = fmt.Sprintf("UPDATE %v SET %v%v", Quote(modelStruct.TableName), strings.Join(updateSqls, ","), session.QB.buildWhereSQL())
+    }
+    log.Printf("Save SQL is %v", session.SQL)
+    if result, err := session.DB().Exec(session.SQL, session.SQLVars...); err == nil {
+        session.RowsAffected, _ = result.RowsAffected()
+
+        return session.RowsAffected, err
+    } else {
+        return 0, err
+    }
 }
