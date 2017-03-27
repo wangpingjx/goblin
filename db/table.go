@@ -55,10 +55,6 @@ func (t *Table) ColumnIndexOf(field *Field) string {
     return field.Tag.Get("index")
 }
 
-// func (t *Table) Quote(str string) string {
-//     return "`" + str + "`"
-// }
-
 // 当前数据库名称
 func (t *Table) CurrentDatabase() (name string){
    t.db.db.QueryRow("SELECT DATABASE()").Scan(&name)

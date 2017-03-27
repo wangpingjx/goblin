@@ -15,16 +15,15 @@ type QueryBuilder struct {
     tableName         string
 
     operation         string
-    whereConditions   []map[string]interface{}
     selects           string
-    limit             int
+    whereConditions   []map[string]interface{}
+    join              string
+    group             string
+    having            string
     order             string
+    limit             int
+    offset            int
 }
-
-// func (qb *QueryBuilder) init() *QueryBuilder {
-//     qb.selects = "*"
-//     return qb
-// }
 
 func (qb *QueryBuilder) Table(name string) *QueryBuilder {
     qb.tableName = name
@@ -47,16 +46,36 @@ func (qb *QueryBuilder) Limit(limit int) *QueryBuilder {
     return qb
 }
 
-// Order("id DESC")
+func (qb *QueryBuilder) Offset(offset int) *QueryBuilder {
+    qb.offset = offset
+    return qb
+}
+
 func (qb *QueryBuilder) Order(order string) *QueryBuilder {
     qb.order = order
+    return qb
+}
+
+func (qb *QueryBuilder) Join(joinOperator string, tableName string, condition string) *QueryBuilder {
+    qb.join = " " + joinOperator + " JOIN " + tableName + " ON " + condition
+    return qb
+}
+
+func (qb *QueryBuilder) Group(column string) *QueryBuilder {
+    qb.group = " GROUP BY " + column
+    return qb
+}
+
+// Order("id DESC")
+func (qb *QueryBuilder) Having(condition string) *QueryBuilder {
+    qb.having = " Having " + condition
     return qb
 }
 
 
 
 /* TODO 暂时默认 query 只会是string，以后再扩充功能 */
-/* TODO 类型断言太恶心了，要改 */
+/* TODO 类型断言太恶心了，需重构 */
 func (qb *QueryBuilder) buildWhereCondition(cond map[string]interface{}) (sql string) {
     sql = fmt.Sprintf("(%v)", cond["query"])
 
@@ -90,22 +109,6 @@ func (qb *QueryBuilder) buildWhereCondition(cond map[string]interface{}) (sql st
     return sql
 }
 
-func (qb *QueryBuilder) buildOrderSQL() (string) {
-    if qb.order != "" {
-        return fmt.Sprintf(" ORDER BY %v", qb.order)
-    } else {
-        return ""
-    }
-}
-
-func (qb *QueryBuilder) buildLimitSQL() (string) {
-    if qb.limit > 0 {
-        return fmt.Sprintf(" LIMIT %d", qb.limit)
-    } else {
-        return ""
-    }
-}
-
 func (qb *QueryBuilder) buildWhereSQL() (string) {
     var whereConditions []string
     for _, cond := range qb.whereConditions {
@@ -113,18 +116,33 @@ func (qb *QueryBuilder) buildWhereSQL() (string) {
             whereConditions = append(whereConditions, sql)
         }
     }
-    if len(whereConditions) > 0 {
-        return "WHERE " + strings.Join(whereConditions, " AND ")
-    } else {
-        return ""
+    whereSQL := ""
+    if len(qb.join) > 0 {
+        whereSQL += " " + qb.join
     }
+    if len(whereConditions) > 0 {
+        whereSQL +=  " WHERE " + strings.Join(whereConditions, " AND ")
+    }
+    if len(qb.group) > 0 {
+        whereSQL += " " + qb.group
+    }
+    if len(qb.having) > 0 {
+        whereSQL += " " + qb.having
+    }
+    if qb.order != "" {
+        whereSQL += fmt.Sprintf(" ORDER BY %v", qb.order)
+    }
+    if qb.limit > 0 {
+        whereSQL += fmt.Sprintf(" LIMIT %d", qb.limit)
+    }
+    return whereSQL
 }
 
 func (qb *QueryBuilder) buildSelect() (sql string) {
     if "" == qb.selects {
         qb.selects = "*"
     }
-    sql = fmt.Sprintf("SELECT %v FROM %v%v%v%v", qb.selects, qb.tableName, qb.buildWhereSQL(), qb.buildOrderSQL(), qb.buildLimitSQL())
+    sql = fmt.Sprintf("SELECT %v FROM %v%v", qb.selects, qb.tableName, qb.buildWhereSQL())
     return sql
 }
 

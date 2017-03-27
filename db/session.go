@@ -5,21 +5,39 @@ import (
     "log"
     "strings"
     "fmt"
-    "database/sql"
 )
 
 type Session struct {
-    db      *DB
-    qb      *QueryBuilder    // SQL组装器
-    Value   interface{}
-    fields  []*Field
-    SQL     string
-    SQLVars []interface{}
+    db        *DB
+    QB        *QueryBuilder    // SQL组装器
+
+    Value     interface{}
+
+    SQL           string
+    SQLVars      []interface{}
+    RowsAffected int64
+    LastInsertId int64
 }
 
-// 废了一天功夫终于让它可以接受 *model.struct & *[]*model.struct 两种格式，待重构 TODO
-func (s *Session) New(value interface{}) *Session {
-    s.Value = value
+type ModelStruct struct {
+    Fields    []*Field
+    TableName string
+}
+
+//TODO Close release the connection from pool
+// func (s *Session) Close() {
+//
+// }
+
+func (session *Session) Init() {
+    session.QB      = &QueryBuilder{ db: session.db }
+    session.SQL     = ""
+    session.SQLVars = make([]interface{}, 0)
+}
+
+// 从 Value 中得到目标 Model 的 TableName、Fields 等信息
+func (session *Session) GetModelStuct(value interface{}) ModelStruct {
+    var modelStruct ModelStruct
 
     reflectValue := reflect.ValueOf(value)
     reflectType  := reflectValue.Type()
@@ -31,90 +49,126 @@ func (s *Session) New(value interface{}) *Session {
         }
         reflectType = reflectType.Elem()
     }
+
     for i := 0; i < reflectType.NumField(); i++ {
         f := reflectType.Field(i)
         if isSlice {
             reflectValue = reflect.ValueOf(reflect.New(reflectType).Interface())
         }
-        field := &Field{ Name: strings.ToLower(f.Name), Tag: f.Tag, Value: reflect.Indirect(reflectValue).FieldByName(f.Name) }
-        s.fields = append(s.fields, field)
+        field := &Field{ Name: ToColumnName(f.Name), Tag: f.Tag, Value: reflect.Indirect(reflectValue).FieldByName(f.Name) }
+        modelStruct.Fields = append(modelStruct.Fields, field)
     }
-    s.qb = &QueryBuilder{ db: s.db, tableName: strings.ToLower(reflectType.Name()) }
-    return s
+    modelStruct.TableName = ToTableName(reflectType.Name())
+
+    return modelStruct
 }
 
-func (s *Session) Create() *Session{
-    // TODO before action
+func (session *Session) DB() sqlCommon{
+    return session.db.db
+}
+
+func (session *Session) Query() error {
+    var err error
+    session.SQL = session.QB.ToSQL()
+    log.Printf("session.SQL is: %v", session.SQL)
+    if rows, err := session.DB().Query(session.SQL, session.SQLVars...); err == nil {
+        session.scan(rows)
+    }
+    return err
+}
+
+func (session *Session) Where(query interface{}, args ...interface{}) *Session {
+    session.QB.Where(query, args...)
+    return session
+}
+
+func (session *Session) Find(value interface{}) error {
+    modelStruct   := session.GetModelStuct(value)
+    session.Value  = value
+    session.QB.Table(modelStruct.TableName)
+
+    return session.Query()
+}
+
+func (session *Session) First(value interface{}) error {
+    modelStruct   := session.GetModelStuct(value)
+    session.Value  = value
+    session.QB.Table(modelStruct.TableName)
+    session.QB.Limit(1)
+
+    return session.Query()
+}
+
+func (session *Session) Last(value interface{}) error {
+    modelStruct   := session.GetModelStuct(value)
+    session.Value  = value
+    session.QB.Table(modelStruct.TableName)
+    session.QB.Order("id DESC").Limit(1)
+
+    return session.Query()
+}
+
+func (session *Session) Order(order string) *Session {
+    session.QB.Order(order)
+    return session
+}
+
+func (session *Session) Limit(limit int) *Session {
+    session.QB.Limit(limit)
+    return session
+}
+
+func (session *Session) Offset(offset int) *Session {
+    session.QB.Offset(offset)
+    return session
+}
+
+func (session *Session) Join(joinOperator string, tableName string, condition string) *Session {
+    session.QB.Join(joinOperator, tableName, condition)
+    return session
+}
+
+func (session *Session) Group(column string) *Session {
+    session.QB.Group(column)
+    return session
+}
+
+func (session *Session) Having(condition string) *Session {
+    session.QB.Having(condition)
+    return session
+}
+
+func (session *Session) Select(str string) *Session {
+    session.QB.Select(str)
+    return session
+}
+
+func (session *Session) Create() (int64, error) {
     var (
         columns       []string
         placeholders  []string
+        modelStruct   ModelStruct
     )
-    for _, field := range s.fields {
-        // 主键不赋值，默认主键id TODO
+    modelStruct = session.GetModelStuct(session.Value)
+
+    for _, field := range modelStruct.Fields {
         if field.Name == "id" {
             continue
         }
-        columns      = append(columns, Quote(field.Name))
-        placeholders = append(placeholders, "?")
-        s.SQLVars    = append(s.SQLVars, field.Value.Interface())
+        columns         = append(columns, Quote(field.Name))
+        placeholders    = append(placeholders, "?")
+        session.SQLVars = append(session.SQLVars, field.Value.Interface())
     }
-    s.SQL = fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)", Quote(s.qb.tableName), strings.Join(columns, ","), strings.Join(placeholders, ","))
+    session.SQL = fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)", Quote(modelStruct.TableName), strings.Join(columns, ","), strings.Join(placeholders, ","))
+    log.Printf("Insert SQL is %v", session.SQL)
 
-    if _, err := s.db.db.Exec(s.SQL, s.SQLVars...); err != nil {
-        fmt.Printf("%v", err)
-    }
-    // TODO after action
-    return s
-}
+    if result, err := session.DB().Exec(session.SQL, session.SQLVars...); err == nil {
+        session.RowsAffected, _ = result.RowsAffected()
+        session.LastInsertId, _ = result.LastInsertId()
 
-// 将查询结果渲染到 *Author{} or *[]*Author{} 即 s.Value
-// 写完这个方法，感觉身体被掏空，最终完全使用了Gorm的处理方式...
-func (s *Session) scan(rows *sql.Rows) {
-    var isSlice, isPtr bool
-    var resultType reflect.Type
-
-    results := reflect.ValueOf(s.Value)
-    for results.Kind() == reflect.Ptr {
-        results = results.Elem()
+        return session.LastInsertId, err
+    } else {
+        return 0, err
     }
 
-    if kind := results.Kind(); kind == reflect.Slice {
-        isSlice = true
-        resultType = results.Type().Elem()
-        results.Set(reflect.MakeSlice(results.Type(), 0, 0))
-
-        if resultType.Kind() == reflect.Ptr {
-            isPtr = true
-            resultType = resultType.Elem()
-        }
-    }
-    defer rows.Close()
-    for rows.Next() {
-        elem := results
-        if isSlice {
-            elem = reflect.New(resultType).Elem()
-        }
-        session2 := s.New(elem.Addr().Interface())
-
-        columns, _ := rows.Columns()
-        onerow     := make([]interface{}, len(columns))
-        for index, column := range columns {
-            for _, field := range session2.fields {
-                if field.Name == column {
-                    onerow[index] = field.Value.Addr().Interface()
-                }
-            }
-        }
-        err := rows.Scan(onerow...)
-        if err != nil {
-            log.Fatal(err)
-        }
-        if isSlice {
-            if isPtr {
-                results.Set(reflect.Append(results, elem.Addr()))
-            } else {
-                results.Set(reflect.Append(results, elem))
-            }
-        }
-    }
 }

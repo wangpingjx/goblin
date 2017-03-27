@@ -6,7 +6,6 @@ package db
 import (
     "database/sql"
     "errors"
-    "log"
 )
 
 /* 如果某个对象实现了此接口的所有方法，那么这个对象就实现了这个接口 */
@@ -103,80 +102,89 @@ func (s *DB) RemoveIndex(value interface{}, indexName string) *DB {
 }
 
 /************************
- *       查询构造器       *
+ *       SQL构造器       *
  ************************/
-func (s *DB) NewSession(value interface{}) *Session {
-    session :=  &Session{ db: s}
-    return session.New(value)
+func (s *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+    return s.db.Query(query, args...)
 }
 
-func (s *DB) Create(value interface{}) *DB {
-    return s.NewSession(value).Create().db
+func (s *DB) NewSession() *Session {
+    session := &Session{ db :s }
+    session.Init()
+    return session
 }
 
-func (s *DB) First(value interface{}) {
-    session      := s.NewSession(value)
-    sql          := session.qb.Limit(1).ToSQL()
-    if rows, err := s.Query(sql); err == nil {
-        session.scan(rows)
-    }
+func (s *DB) Where(query interface{}, args ...interface{}) *Session {
+    session := s.NewSession()
+    return session.Where(query, args)
 }
 
-func (s *DB) Last(value interface{}) {
-    session      := s.NewSession(value)
-    sql          := session.qb.Order("id desc").Limit(1).ToSQL()
-    if rows, err := s.Query(sql); err == nil {
-        session.scan(rows)
-    }
+func (s *DB) Find(value interface{}) error {
+    session      := s.NewSession()
+    modelStruct  := session.GetModelStuct(value)
+    session.Value = value
+    session.QB.Table(modelStruct.TableName)
+
+    return session.Query()
 }
 
-func (s *DB) Find(value interface{}) {
-    session      := s.NewSession(value)
-    sql          := session.qb.ToSQL()
-    if rows, err := s.Query(sql); err == nil {
-        session.scan(rows)
-    }
+func (s *DB) First(value interface{}) error {
+    session      := s.NewSession()
+    modelStruct  := session.GetModelStuct(value)
+    session.Value = value
+    session.QB.Table(modelStruct.TableName)
+    session.QB.Limit(1)
+
+    return session.Query()
 }
 
-func (s *DB) Query(query string) (*sql.Rows, error) {
-    log.Println(" => SQL: " + query)
-    return s.db.Query(query)
+func (s *DB) Last(value interface{}) error {
+    session      := s.NewSession()
+    modelStruct  := session.GetModelStuct(value)
+    session.Value = value
+    session.QB.Table(modelStruct.TableName)
+    session.QB.Order("id DESC").Limit(1)
+
+    return session.Query()
 }
 
-// func (s *DB) Select(selects string) *DB {
-//     return s.qb.Select(selects).db
-// }
-//
-// func (s *DB) Where(query interface{}, args ...interface{}) *DB {
-//     return s.qb.Where(query, args...).db
-// }
-//
-// func (s *DB) Limit(limit int) *DB {
-//     return s.qb.Limit(limit).db
-// }
-//
-// func (s *DB) Find() (*sql.Rows, error) {
-//     sql := s.qb.buildSelect()
-//     return s.Query(sql)
-// }
+func (s *DB) Order(order string) *Session {
+    session := s.NewSession()
+    return session.Order(order)
+}
 
+func (s *DB) Limit(limit int) *Session {
+    session := s.NewSession()
+    return session.Limit(limit)
+}
 
-/************************
- *     对象关系映射       *
- ************************/
+func (s *DB) Offset(offset int) *Session {
+    session := s.NewSession()
+    return session.Offset(offset)
+}
 
+func (s *DB) Join(joinOperator string, tableName string, condition string) *Session {
+    session := s.NewSession()
+    return session.Join(joinOperator, tableName, condition)
+}
 
+func (s *DB) Group(column string) *Session {
+    session := s.NewSession()
+    return session.Group(column)
+}
 
-// func (s *DB) ScanRows(rows *sql.Rows, fields []string) error {
-//     var ignored interface{}
-//     var columns, err = rows.Columns()
-//
-//     for index, column := range columns {
-//         values[index] = &ignored
-//
-//         for findex, field := range fields {
-//
-//         }
-//
-//     }
-// }
+func (s *DB) Having(condition string) *Session {
+    session := s.NewSession()
+    return session.Having(condition)
+}
+
+func (s *DB) Select(str string) *Session {
+    session := s.NewSession()
+    return session.Select(str)
+}
+
+func (s *DB) Create(value interface{}) (int64, error) {
+    session := s.NewSession()
+    session.Value = value
+    return session.Create()
+}
