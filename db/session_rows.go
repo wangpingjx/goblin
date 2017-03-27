@@ -36,7 +36,7 @@ func (session *Session) scan(rows *sql.Rows) {
         if isSlice {
             elem = reflect.New(resultType).Elem()
         }
-        modelStruct := session.GetModelStuct(elem.Addr().Interface())
+        modelStruct := session.GetModelStruct(elem.Addr().Interface())
         columns, _  := rows.Columns()
         onerow      := make([]interface{}, len(columns))
         for index, column := range columns {

@@ -36,7 +36,7 @@ func (session *Session) Init() {
 }
 
 // 从 Value 中得到目标 Model 的 TableName、Fields 等信息
-func (session *Session) GetModelStuct(value interface{}) ModelStruct {
+func (session *Session) GetModelStruct(value interface{}) ModelStruct {
     var modelStruct ModelStruct
 
     reflectValue := reflect.ValueOf(value)
@@ -83,7 +83,7 @@ func (session *Session) Where(query interface{}, args ...interface{}) *Session {
 }
 
 func (session *Session) Find(value interface{}) error {
-    modelStruct   := session.GetModelStuct(value)
+    modelStruct   := session.GetModelStruct(value)
     session.Value  = value
     session.QB.Table(modelStruct.TableName)
 
@@ -91,7 +91,7 @@ func (session *Session) Find(value interface{}) error {
 }
 
 func (session *Session) First(value interface{}) error {
-    modelStruct   := session.GetModelStuct(value)
+    modelStruct   := session.GetModelStruct(value)
     session.Value  = value
     session.QB.Table(modelStruct.TableName)
     session.QB.Limit(1)
@@ -100,7 +100,7 @@ func (session *Session) First(value interface{}) error {
 }
 
 func (session *Session) Last(value interface{}) error {
-    modelStruct   := session.GetModelStuct(value)
+    modelStruct   := session.GetModelStruct(value)
     session.Value  = value
     session.QB.Table(modelStruct.TableName)
     session.QB.Order("id DESC").Limit(1)
@@ -149,7 +149,7 @@ func (session *Session) Create() (int64, error) {
         placeholders  []string
         modelStruct   ModelStruct
     )
-    modelStruct = session.GetModelStuct(session.Value)
+    modelStruct = session.GetModelStruct(session.Value)
 
     for _, field := range modelStruct.Fields {
         if field.Name == "id" {
@@ -177,7 +177,7 @@ func (session *Session) Update(column string, attr interface{}) (int64, error) {
         updateSqls    []string
         modelStruct   ModelStruct
     )
-    modelStruct = session.GetModelStuct(session.Value)
+    modelStruct = session.GetModelStruct(session.Value)
 
     // TODO 待扩展支持多个参数更新
     updateSqls = append(updateSqls, fmt.Sprintf("%v = %v", Quote(column), ToVars(attr)))
@@ -202,7 +202,7 @@ func (session *Session) Save() (int64, error) {
         updateSqls   []string
         modelStruct   ModelStruct
     )
-    modelStruct = session.GetModelStuct(session.Value)
+    modelStruct = session.GetModelStruct(session.Value)
 
     for _, field := range modelStruct.Fields {
         if field.Name == "id" {
@@ -229,6 +229,32 @@ func (session *Session) Save() (int64, error) {
     if result, err := session.DB().Exec(session.SQL, session.SQLVars...); err == nil {
         session.RowsAffected, _ = result.RowsAffected()
 
+        return session.RowsAffected, err
+    } else {
+        return 0, err
+    }
+}
+
+func (session *Session) Delete(value interface{}) (int64, error) {
+    var (
+        modelStruct ModelStruct
+    )
+    modelStruct = session.GetModelStruct(value)
+    for _, field := range modelStruct.Fields {
+        if field.Name == "id" {
+            if id, ok := field.Value.Interface().(int); ok {
+                if id > 0 {
+                    session.QB.Where("id = ?", id)
+                }
+            }
+            break
+        }
+    }
+    session.SQL = fmt.Sprintf("DELETE FROM %v%v", Quote(modelStruct.TableName), session.QB.buildWhereSQL())
+    log.Printf("Delete SQL is %v", session.SQL)
+
+    if result, err := session.DB().Exec(session.SQL, session.SQLVars...); err == nil {
+        session.RowsAffected, _ = result.RowsAffected()
         return session.RowsAffected, err
     } else {
         return 0, err

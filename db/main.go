@@ -1,4 +1,5 @@
 /**
+/**
  * 实现方式借鉴 gorm、xorm
  */
 package db
@@ -121,7 +122,7 @@ func (s *DB) Where(query interface{}, args ...interface{}) *Session {
 
 func (s *DB) Find(value interface{}) error {
     session      := s.NewSession()
-    modelStruct  := session.GetModelStuct(value)
+    modelStruct  := session.GetModelStruct(value)
     session.Value = value
     session.QB.Table(modelStruct.TableName)
 
@@ -130,7 +131,7 @@ func (s *DB) Find(value interface{}) error {
 
 func (s *DB) First(value interface{}) error {
     session      := s.NewSession()
-    modelStruct  := session.GetModelStuct(value)
+    modelStruct  := session.GetModelStruct(value)
     session.Value = value
     session.QB.Table(modelStruct.TableName)
     session.QB.Limit(1)
@@ -140,7 +141,7 @@ func (s *DB) First(value interface{}) error {
 
 func (s *DB) Last(value interface{}) error {
     session      := s.NewSession()
-    modelStruct  := session.GetModelStuct(value)
+    modelStruct  := session.GetModelStruct(value)
     session.Value = value
     session.QB.Table(modelStruct.TableName)
     session.QB.Order("id DESC").Limit(1)
@@ -200,4 +201,9 @@ func (s *DB) Save(value interface{}) (int64, error) {
     session := s.NewSession()
     session.Value = value
     return session.Save()
+}
+
+func (s *DB) Delete(value interface{}) (int64, error) {
+    session := s.NewSession()
+    return session.Delete(value)
 }
