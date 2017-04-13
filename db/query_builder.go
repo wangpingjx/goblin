@@ -57,18 +57,18 @@ func (qb *QueryBuilder) Order(order string) *QueryBuilder {
 }
 
 func (qb *QueryBuilder) Join(joinOperator string, tableName string, condition string) *QueryBuilder {
-    qb.join = " " + joinOperator + " JOIN " + tableName + " ON " + condition
+    qb.join = joinOperator + " JOIN " + tableName + " ON " + condition
     return qb
 }
 
 func (qb *QueryBuilder) Group(column string) *QueryBuilder {
-    qb.group = " GROUP BY " + column
+    qb.group = "GROUP BY " + column
     return qb
 }
 
 // Order("id DESC")
 func (qb *QueryBuilder) Having(condition string) *QueryBuilder {
-    qb.having = " Having " + condition
+    qb.having = "Having " + condition
     return qb
 }
 
@@ -134,6 +134,9 @@ func (qb *QueryBuilder) buildWhereSQL() (string) {
     }
     if qb.limit > 0 {
         whereSQL += fmt.Sprintf(" LIMIT %d", qb.limit)
+    }
+    if  qb.limit > 0 && qb.offset > 0 {
+        whereSQL += fmt.Sprintf(" OFFSET %d", qb.offset)
     }
     return whereSQL
 }
